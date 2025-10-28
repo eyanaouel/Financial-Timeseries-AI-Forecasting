@@ -16,9 +16,6 @@ This project implements a comprehensive comparison of classical statistical mode
 -  Interactive dashboard for real-time visualization
 -  Comprehensive evaluation metrics
 
-## Project Structure
-(voir structure complète ci-dessus)
-
 ## Installation
 
 ### R Environment
@@ -43,12 +40,6 @@ Rscript src/01_data_collection.R
 ```bash
 Rscript -e "rmarkdown::render('notebooks/01_exploratory_data_analysis.Rmd')"
 ```
-
-## Results Preview
-(ajouter captures d'écran)
-
-## Authors
-- Votre Nom - [LinkedIn](votre-lien) - [GitHub](votre-lien)
 
 ## License
 MIT License
