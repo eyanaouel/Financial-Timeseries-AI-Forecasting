@@ -1,0 +1,157 @@
+
+# 1. Vue d'ensemble des données
+
+library(tidyverse)
+library(plotly)
+library(patchwork)
+library(tseries)
+library(here)
+
+
+data <- readRDS("data/processed/financial_data_processed.rds")
+
+## 1.1 Évolution des prix
+
+plot_prices <- function(symbol_name) {
+  data %>%
+    filter(Symbol == symbol_name, dataset == "train") %>%
+    ggplot(aes(x = Date, y = Close)) +
+    geom_line(color = "steelblue", size = 0.8) +
+    geom_line(aes(y = MA_30), color = "red", linetype = "dashed") +
+    geom_line(aes(y = MA_90), color = "darkgreen", linetype = "dashed") +
+    labs(title = paste("Prix de", symbol_name),
+         subtitle = "Avec moyennes mobiles 30 et 90 jours",
+         y = "Prix de clôture ($)",
+         x = "Date") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", size = 14))
+}
+
+# Créer un plot pour chaque action
+symbols <- unique(data$Symbol)
+plots_list <- map(symbols, plot_prices)
+
+# Combiner avec patchwork
+wrap_plots(plots_list, ncol = 2)
+
+## 1.2 Distribution des Returns
+
+data %>%
+  filter(dataset == "train") %>%
+  ggplot(aes(x = Returns, fill = Symbol)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~Symbol, scales = "free") +
+  labs(title = "Distribution des Returns par Actif",
+       x = "Returns",
+       y = "Densité") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+## 1.3 Tests de stationnarité (ADF Test)
+
+adf_tests <- data %>%
+  filter(dataset == "train") %>%
+  group_by(Symbol) %>%
+  summarise(
+    # Test sur les prix
+    ADF_Price = adf.test(na.omit(Close))$p.value,
+    # Test sur les returns
+    ADF_Returns = adf.test(na.omit(Returns))$p.value,
+    # Test sur log returns
+    ADF_LogReturns = adf.test(na.omit(Log_Returns))$p.value
+  ) %>%
+  mutate(
+    Stationary_Price = ifelse(ADF_Price < 0.05, "✓", "✗"),
+    Stationary_Returns = ifelse(ADF_Returns < 0.05, "✓", "✗")
+  )
+
+kable(adf_tests, 
+      caption = "Tests de Stationnarité (ADF)",
+      digits = 4) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+## 1.4 ACF et PACF
+
+create_acf_pacf_plot <- function(symbol_name, variable = "Returns") {
+  data_subset <- data %>%
+    filter(Symbol == symbol_name, dataset == "train") %>%
+    pull(!!sym(variable)) %>%
+    na.omit()
+  
+  par(mfrow = c(1, 2))
+  acf(data_subset, main = paste("ACF -", symbol_name))
+  pacf(data_subset, main = paste("PACF -", symbol_name))
+  par(mfrow = c(1, 1))
+}
+
+# Créer pour chaque symbole
+walk(symbols, create_acf_pacf_plot)
+
+## 1.5 Décomposition saisonnière
+
+# Pour les actions avec données quotidiennes
+decompose_series <- function(symbol_name) {
+  ts_data <- data %>%
+    filter(Symbol == symbol_name, dataset == "train") %>%
+    arrange(Date) %>%
+    pull(Close) %>%
+    ts(frequency = 252) # 252 jours de trading/an
+  
+  decomposition <- decompose(ts_data, type = "multiplicative")
+  plot(decomposition, main = paste("Décomposition -", symbol_name))
+}
+
+walk(symbols[1:3], decompose_series) # Exemples
+
+## 1.6 Matrice de corrélation
+
+correlation_matrix <- data %>%
+  filter(dataset == "train") %>%
+  select(Symbol, Date, Returns) %>%
+  pivot_wider(names_from = Symbol, values_from = Returns) %>%
+  select(-Date) %>%
+  cor(use = "complete.obs")
+
+library(corrplot)
+corrplot(correlation_matrix, 
+         method = "color",
+         type = "upper",
+         tl.col = "black",
+         tl.srt = 45,
+         addCoef.col = "black",
+         number.cex = 0.7,
+         title = "Matrice de Corrélation des Returns",
+         mar = c(0,0,2,0))
+
+## 1.7 Volatility Clustering
+
+plot_volatility_clustering <- function(symbol_name) {
+  data %>%
+    filter(Symbol == symbol_name, dataset == "train") %>%
+    ggplot(aes(x = Date, y = abs(Returns))) +
+    geom_line(color = "darkred", alpha = 0.6) +
+    geom_smooth(method = "loess", color = "blue", se = TRUE) +
+    labs(title = paste("Volatility Clustering -", symbol_name),
+         y = "|Returns|",
+         x = "Date") +
+    theme_minimal()
+}
+
+plots_vol <- map(symbols, plot_volatility_clustering)
+wrap_plots(plots_vol, ncol = 2)
+
+## 1.8 Détection d'anomalies visuelles
+
+data %>%
+  filter(dataset == "train", Returns_outlier == TRUE) %>%
+  ggplot(aes(x = Date, y = Returns, color = Symbol)) +
+  geom_point(size = 3, alpha = 0.7) +
+  facet_wrap(~Symbol, scales = "free_y") +
+  labs(title = "Valeurs Aberrantes Détectées (IQR Method)",
+       y = "Returns",
+       x = "Date") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Sauvegarder les résultats
+ggsave( filename = here("results/figures/eda_complete.png"), width = 16, height = 12, dpi = 300)
