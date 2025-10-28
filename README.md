@@ -9,7 +9,7 @@
 This project implements a comprehensive comparison of classical statistical models, deep learning architectures, and LLM-powered insights for financial time series forecasting.
 
 ### Key Features
--  Multi-asset portfolio analysis (AAPL, GOOGL, MSFT, NVDA, TSLA, S&P500, VIX, BTC)
+-  Multi-asset portfolio analysis (AAPL, GOOGL, MSFT, NVDA, TSLA, BTC-USD, ETH-USD, ^GSPC, ^VIX, GC=F, CL=F)
 -  Classical models: ARIMA, SARIMA, VAR, ARCH/GARCH
 -  Deep Learning: LSTM, GRU, Hybrid architectures
 -  LLM integration for automated insights
